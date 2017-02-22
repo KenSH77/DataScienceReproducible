@@ -1,0 +1,106 @@
+---
+title: "Project2"
+Date: created on feb 21st, 2017
+output: html_document
+Author: Ken Gu
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+```
+
+Studies on the effect of weather events on personal as well as property damages in US based on NOAA database.
+
+1. Synopsis: 
+  1.1 Background: Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+  1.2 DataSource Of Analysis: 
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+  1.3 Summary:
+The report leverages line plot to indicate the 2 following questions:
+    1.3.1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+    1.3.2. Across the United States, which types of events have the greatest economic consequences?
+
+2. Data Processing:
+This section describes the how the data is loaded.
+RawData -> Pre-processed data -> Plot
+Step 1: read rawData
+Step 2: clean the rawData; filter out defined EVTYPE from the document; only select columns: EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP; 
+Step 3: re-organize the step2 data to calculate the total harmful events to population health; economic consequences
+
+
+```{r, cache=TRUE}
+stormRawData <- read.csv("./StormData.csv", header=TRUE)
+processData <- select(stormRawData, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP )
+# clean up EVTTYPE
+evtTypeList <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood", "Cold/Wind Chill", "Debris Flow", "Dense Fog", "Dense Smoke", "Drought", "Dust Devil", "Dust Storm", "Excessive Heat", "Extreme Cold/Wind Chill", "Flash Flood", "Flood", "Frost/Freeze", "Funnel Cloud", "Freezing Fog", "Hail", "Heat", "Heavy Rain", "Heavy Snow", "High Surf", "High Wind", "Hurricane (Typhoon)", "Ice Storm", "Lake-Effect Snow", "Lakeshore Flood", "Lightning", "Marine Hail", "Marine High Wind", "Marine Strong Wind", "Marine Thunderstorm Wind", "Rip Current", "Seiche", "Sleet", "Storm Surge/Tide", "Strong Wind", "Thunderstorm Wind", "Tornado", "Tropical Depression", "Tropical Storm", "Tsunami", "Volcanic Ash", "Waterspout", "Wildfire", "Winter Storm", "Winter Weather")
+processData <- filter(processData, EVTYPE %in% toupper(evtTypeList))
+processData[,1] <- sapply(processData[,1],function(row) iconv(row, "latin1", "ASCII", sub=""))
+
+# filter out missing Values
+compData1 <- complete.cases(processData[,1], processData[,2], processData[,3])
+compData2 <- complete.cases(processData[,1], processData[,4], processData[,5], processData[,6], processData[,7])
+
+# clean up EVTTYPE
+processData1 <- processData[compData1,]
+processData2 <- processData[compData2,]
+grpResult1 <- group_by(processData1, EVTYPE)
+
+# summarize the results for health costs
+result1 <- summarise(grpResult1, sum(as.numeric(FATALITIES)) + sum(as.numeric(INJURIES)))
+colnames(result1) <- c("EVTYPE", "SUMNUM")
+
+# make the order
+result1 <- result1[order(-result1$SUMNUM),]
+result1 <- slice(result1, 1:5)
+result1
+
+
+```
+3. Results:
+```{r, cache=TRUE}
+# draw graphs for question 1
+ggplot(result1, aes(EVTYPE, SUMNUM)) + geom_bar(stat = "identity", fill = "blue")
+maxname1 <- filter(result1, SUMNUM==max(result1[,2]))[,1]
+
+# for question 2
+processData2 <- mutate(processData2, ecoCost=0)
+
+processData21 <- filter(processData2, toupper(processData2$PROPDMGEXP)=="K")
+processData22 <- filter(processData2, toupper(processData2$PROPDMGEXP)=="M")
+processData23 <- filter(processData2, toupper(processData2$PROPDMGEXP)=="B")
+processData24 <- filter(processData2, toupper(processData2$CROPDMGEXP)=="K")
+processData25 <- filter(processData2, toupper(processData2$CROPDMGEXP)=="M")
+processData26 <- filter(processData2, toupper(processData2$CROPDMGEXP)=="B")
+processData21[,8] <- processData21[,4]*1000
+processData22[,8] <- processData22[,4]*1000000
+processData23[,8] <- processData23[,4]*1000000000
+processData24[,8] <- processData24[,6]*1000
+processData25[,8] <- processData25[,6]*1000000
+processData26[,8] <- processData26[,6]*1000000000
+
+processDataC2 <- rbind(processData21, processData22, processData23, processData24,  processData25,processData26)
+grpResult2 <- group_by(processDataC2, EVTYPE)
+result2 <- summarise(grpResult2, sum(ecoCost) )
+colnames(result2) <- c("EVTYPE", "SUMECOCOST")
+#reorder result2
+result2 <- result2[order(-result2$SUMECOCOST),]
+result2 <- slice(result2, 1:5)
+result2
+ggplot(result2, aes(EVTYPE, SUMECOCOST)) + geom_bar(stat = "identity", fill = "blue")
+
+```
+
+
+
+4. Conclusion: 
+    
+    4.1 Across the United States, event - TORNADO - is most harmful with respect to population health.
+    
+    4.2 Across the United States, event - FLOOD -  have the greatest economic consequences
+
+
